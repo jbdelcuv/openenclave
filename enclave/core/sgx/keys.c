@@ -7,6 +7,8 @@
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/safecrt.h>
 #include <openenclave/internal/utils.h>
+#include <openenclave/internal/entropy.h>
+#include <openenclave/internal/crypto/sha.h>
 #include "asmdefs.h"
 #include "report.h"
 
@@ -218,6 +220,38 @@ done:
     return result;
 }
 
+static oe_result_t _get_seal_key_info_internal(
+    oe_seal_policy_t seal_policy,
+    uint64_t opt_flags,
+    sgx_key_request_t *key_request)
+{
+    oe_result_t result = OE_OK;
+
+    OE_CHECK(_get_default_key_request_attributes(key_request));
+
+    // Set custom attributes mask if provided
+    if (opt_flags & OE_SEAL_SGX_SPECIFIC)
+        key_request->attribute_mask.flags = opt_flags & ~OE_SEAL_SGX_SPECIFIC;
+
+    // Set key name and key policy.
+    key_request->key_name = SGX_KEYSELECT_SEAL;
+    switch (seal_policy)
+    {
+        case OE_SEAL_POLICY_UNIQUE:
+            key_request->key_policy = SGX_KEYPOLICY_MRENCLAVE;
+            break;
+        case OE_SEAL_POLICY_PRODUCT:
+            key_request->key_policy = SGX_KEYPOLICY_MRSIGNER;
+            break;
+        default:
+            result = OE_INVALID_PARAMETER;
+            break;
+    }
+
+done:
+    return result;
+}
+
 static oe_result_t _oe_get_seal_key_by_policy_internal(
     oe_seal_policy_t seal_policy,
     uint8_t* key_buffer,
@@ -248,27 +282,11 @@ static oe_result_t _oe_get_seal_key_by_policy_internal(
         return OE_BUFFER_TOO_SMALL;
     }
 
-    // Get default key request attributes.
-    result = _get_default_key_request_attributes(&sgx_key_request);
+    // Get key request
+    result = _get_seal_key_info_internal(seal_policy, 0, &sgx_key_request);
     if (result != OE_OK)
     {
         return OE_UNEXPECTED;
-    }
-
-    // Set key name and key policy.
-    sgx_key_request.key_name = SGX_KEYSELECT_SEAL;
-    switch (seal_policy)
-    {
-        case OE_SEAL_POLICY_UNIQUE:
-            sgx_key_request.key_policy = SGX_KEYPOLICY_MRENCLAVE;
-            break;
-
-        case OE_SEAL_POLICY_PRODUCT:
-            sgx_key_request.key_policy = SGX_KEYPOLICY_MRSIGNER;
-            break;
-
-        default:
-            return OE_INVALID_PARAMETER;
     }
 
     // Get the seal key.
@@ -359,6 +377,57 @@ oe_result_t oe_get_seal_key_by_policy_v2(
         {
             *_key_info_size = key_info_size;
         }
+    }
+    return result;
+}
+
+oe_result_t oe_get_seal_key_info(
+    oe_seal_policy_t seal_policy,
+    uint8_t* keyid,
+    size_t keyid_size,
+    uint64_t opt_flags,
+    uint8_t** key_info,
+    size_t* key_info_size)
+{
+    sgx_key_request_t *kreq;
+    oe_sha256_context_t sha;
+    oe_result_t result = OE_OK;
+    oe_entropy_kind_t k;
+
+    if (!key_info || !key_info_size ||
+    (keyid == NULL) != (keyid_size == 0))
+        return OE_INVALID_PARAMETER;
+
+    kreq = (sgx_key_request_t*)oe_calloc(1, sizeof(*kreq));
+    if (kreq == NULL)
+        OE_RAISE(OE_OUT_OF_MEMORY);
+
+    OE_CHECK(_get_seal_key_info_internal(seal_policy, opt_flags, kreq));
+
+    switch (keyid_size)
+    {
+        case 0:
+            OE_CHECK(oe_get_entropy(kreq->key_id, sizeof(kreq->key_id), &k));
+            break;
+        case sizeof(kreq->key_id):
+            OE_CHECK(oe_memcpy_s(kreq->key_id, sizeof(kreq->key_id),
+                                 keyid, keyid_size));
+            break;
+        default:
+            OE_CHECK(oe_sha256_init(&sha));
+            OE_CHECK(oe_sha256_update(&sha, keyid, keyid_size));
+            OE_CHECK(oe_sha256_final(&sha, (OE_SHA256*)kreq->key_id));
+            break;
+    }
+
+    *key_info = (uint8_t*)kreq;
+    *key_info_size = sizeof(*kreq);
+
+done:
+    if (result != OE_OK)
+    {
+        if (kreq)
+            oe_free(kreq);
     }
     return result;
 }

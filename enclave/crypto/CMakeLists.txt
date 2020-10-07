@@ -16,6 +16,7 @@ add_enclave_library(
   hmac.c
   key.c
   rsa.c
+  gcm.c
   sha.c)
 
 maybe_build_using_clangw(oecryptombed)

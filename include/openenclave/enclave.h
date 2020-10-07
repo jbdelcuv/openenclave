@@ -23,6 +23,7 @@
 #include "bits/properties.h"
 #include "bits/result.h"
 #include "bits/types.h"
+#include "bits/seal.h"
 
 /**
  * @cond IGNORE
@@ -578,6 +579,100 @@ oe_result_t oe_get_seal_key_v2(
  * @param[in] key_info If non-NULL, the key info buffer to free.
  */
 void oe_free_seal_key(uint8_t* key_buffer, uint8_t* key_info);
+
+/**
+ * Get enclave-specific key information that could be passed to
+ * oe_get_seal_key_v2() to derive a symmetric encryption key coupled to the
+ * enclave platform.
+ *
+ * @param[in] seal_policy The policy for the identity properties used to derive
+ * the seal key.
+ * @param[in] entropy Optional parameter containing additional entropy for key
+ * derivation. If \c NULL, oe_get_seal_key_info() will generate entropy on
+ * behalf of the caller.
+ * @param[in] entropy_size Must be \c 0 if \p entropy is \c NULL.
+ * @param[in] opt_flags \c 0 to use TEE defaults. If \c OE_SEAL_SGX_SPECIFIC is
+ * specified, the rest of \p opt_flags is interpreted as the \a attribute_mask
+ * for \c EGETKEY on SGX.
+ * @param[out] key_info On success this points to the enclave-specific key
+ * information which can be used to retrieve the key by passing it to
+ * oe_get_seal_key_v2(). Freed by calling oe_free_key().
+ * @param[out] key_info_size On success, this is the size of the \p key_info
+ * buffer.
+ *
+ * @retval OE_OK The seal key info was successfully requested.
+ * @retval OE_INVALID_PARAMETER At least one parameter is invalid.
+ * @retval OE_OUT_OF_MEMORY Failed to allocate memory.
+ */
+oe_result_t oe_get_seal_key_info(
+    oe_seal_policy_t seal_policy,
+    uint8_t* entropy,
+    size_t entropy_size,
+    uint64_t opt_flags,
+    uint8_t** key_info,
+    size_t* key_info_size);
+
+/**
+ * Seal data to an enclave using AEAD (Authenticated Encryption with Additional
+ * Data).
+ *
+ * @param[in] key_info Key info to be passed to oe_get_seal_key_v2() to derive
+ * seal key.
+ * @param[in] key_info_size Size of \p key_info.
+ * @param[in] plaintext Optional buffer to be encrypted under the seal key.
+ * @param[in] plaintext_size Size of \p plaintext, must be \c 0 if \p plaintext
+ * is \c NULL.
+ * @param[in] additional_data Optional additional data to be included in the
+ * final MAC.
+ * @param[in] additional_size Size of \p additional_data, must be \c 0 if
+ * \p additional_data is \c NULL.
+ * @param[out] blob On success, receive the pointer to a buffer containing both
+ * \p additional_data and encrypted \p plaintext, along with necessary
+ * information for unsealing. Freed by oe_free().
+ * @param[out] blob_size On success, receive the size of \p blob.
+ *
+ * @retval OE_OK \p plaintext and \p additional_data were sealed to the enclave
+ * successfully.
+ * @retval OE_INVALID_PARAMETER At least one parameter is invalid.
+ * @retval OE_OUT_OF_MEMORY Failed to allocate memory.
+ * @retval OE_CRYPTO_ERROR Error occurred during encryption.
+ */
+oe_result_t oe_seal(
+    const uint8_t* key_info,
+    size_t key_info_size,
+    const uint8_t* plaintext,
+    size_t plaintext_size,
+    const uint8_t* additional_data,
+    size_t additional_size,
+    uint8_t **blob,
+    size_t *blob_size);
+
+/**
+ * Unseal in place a blob sealed by oe_seal().
+ *
+ * @param[in,out] blob The blob to be unsealed in place.
+ * @param[in] blob_size Size of \p blob.
+ * @param[out] plaintext On success, receive the pointer to the decrypted data
+ * within \p blob. This parameter is optional.
+ * @param[out] plaintext_size On success, receive the size of \p plaintext.
+ * This parameter is optional.
+ * @param[out] additional_data On success, receive the pointer to the
+ * additional authenticated data within \p blob. This parameter is optional.
+ * @param[out] additional_size On success, receive the size of
+ * \p additional_data. This parameter is optional.
+ *
+ * @retval OE_OK Unsealed \p blob successfully.
+ * @retval OE_INVALID_PARAMETER At least one parameter is invalid.
+ * @retval OE_OUT_OF_MEMORY Failed to allocate memory.
+ * @retval OE_CRYPTO_ERROR Error occurred during decryption.
+ */
+oe_result_t oe_unseal(
+    uint8_t* blob,
+    size_t blob_size,
+    uint8_t** plaintext,
+    size_t* plaintext_size,
+    uint8_t** additional_data,
+    size_t* additional_size);
 
 /**
  * Obtains the enclave handle.
