@@ -1,0 +1,28 @@
+// Copyright (c) Open Enclave SDK contributors.
+// Licensed under the MIT License.
+
+enclave {
+#ifdef OE_SGX
+    from "openenclave/edl/sgx/platform.edl" import *;
+#else
+    from "openenclave/edl/optee/platform.edl" import *;
+#endif
+
+    trusted {
+        public oe_result_t seal_data(
+            oe_seal_policy_t policy,
+            [string, in] const char *plaintext,
+            [string, in] const char *aad,
+            [out, count=blob_max_size] uint8_t* blob,
+            size_t blob_max_size,
+            [out] size_t* blob_size);
+
+        public oe_result_t unseal_data(
+            [in, out, count=blob_size] uint8_t* blob,
+            size_t blob_size,
+            [out] size_t* plaintext_offset,
+            [out] size_t* plaintext_size,
+            [out] size_t* aad_offset,
+            [out] size_t* aad_size);
+    };
+};
