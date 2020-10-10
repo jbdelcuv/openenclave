@@ -425,9 +425,6 @@ oe_result_t oe_get_seal_key_info(
 
 done:
     if (result != OE_OK)
-    {
-        if (kreq)
-            oe_free(kreq);
-    }
+        oe_free(kreq);
     return result;
 }

@@ -11,7 +11,9 @@
 typedef struct _oe_sealed_blob_header
 {
     sgx_key_request_t   key_info;
-    uint32_t            aad_offset;
+    uint32_t            aad_offset;     /* byte offset of the Additional
+                                           Authenticated Data in the sealed
+                                           blob */
     uint8_t             reserved1[12];
     uint32_t            payload_size;   /* total size of ciphertext and AAD */
     uint8_t             reserved2[12];

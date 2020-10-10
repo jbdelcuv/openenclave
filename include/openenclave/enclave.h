@@ -591,12 +591,12 @@ void oe_free_seal_key(uint8_t* key_buffer, uint8_t* key_info);
  * derivation. If \c NULL, oe_get_seal_key_info() will generate entropy on
  * behalf of the caller.
  * @param[in] entropy_size Must be \c 0 if \p entropy is \c NULL.
- * @param[in] opt_flags \c 0 to use TEE defaults. If \c OE_SEAL_SGX_SPECIFIC is
- * specified, the rest of \p opt_flags is interpreted as the \a attribute_mask
- * for \c EGETKEY on SGX.
+ * @param[in] optional_flags \c OE_SEAL_TEE_AGNOSTIC to use TEE defaults. If \c
+ * OE_SEAL_SGX_SPECIFIC is specified, the rest of \p optional_flags is
+ * interpreted as the \a attribute_mask for \c EGETKEY on SGX.
  * @param[out] key_info On success this points to the enclave-specific key
  * information which can be used to retrieve the key by passing it to
- * oe_get_seal_key_v2(). Freed by calling oe_free_key().
+ * oe_get_seal_key_v2(). Freed by calling oe_free_seal_key() or oe_free_key().
  * @param[out] key_info_size On success, this is the size of the \p key_info
  * buffer.
  *
@@ -608,7 +608,7 @@ oe_result_t oe_get_seal_key_info(
     oe_seal_policy_t seal_policy,
     uint8_t* entropy,
     size_t entropy_size,
-    uint64_t opt_flags,
+    uint64_t optional_flags,
     uint8_t** key_info,
     size_t* key_info_size);
 
@@ -616,15 +616,15 @@ oe_result_t oe_get_seal_key_info(
  * Seal data to an enclave using AEAD (Authenticated Encryption with Additional
  * Data).
  *
- * @param[in] key_info Key info to be passed to oe_get_seal_key_v2() to derive
- * seal key.
- * @param[in] key_info_size Size of \p key_info.
+ * @param[in] key_info The enclave-specific key information to derive the seal
+ * key with.
+ * @param[in] key_info_size The size of the \p key_info buffer.
  * @param[in] plaintext Optional buffer to be encrypted under the seal key.
  * @param[in] plaintext_size Size of \p plaintext, must be \c 0 if \p plaintext
  * is \c NULL.
  * @param[in] additional_data Optional additional data to be included in the
  * final MAC.
- * @param[in] additional_size Size of \p additional_data, must be \c 0 if
+ * @param[in] additional_data_size Size of \p additional_data, must be \c 0 if
  * \p additional_data is \c NULL.
  * @param[out] blob On success, receive the pointer to a buffer containing both
  * \p additional_data and encrypted \p plaintext, along with necessary
@@ -643,7 +643,7 @@ oe_result_t oe_seal(
     const uint8_t* plaintext,
     size_t plaintext_size,
     const uint8_t* additional_data,
-    size_t additional_size,
+    size_t additional_data_size,
     uint8_t **blob,
     size_t *blob_size);
 
@@ -658,7 +658,7 @@ oe_result_t oe_seal(
  * This parameter is optional.
  * @param[out] additional_data On success, receive the pointer to the
  * additional authenticated data within \p blob. This parameter is optional.
- * @param[out] additional_size On success, receive the size of
+ * @param[out] additional_data_size On success, receive the size of
  * \p additional_data. This parameter is optional.
  *
  * @retval OE_OK Unsealed \p blob successfully.
@@ -672,7 +672,7 @@ oe_result_t oe_unseal(
     uint8_t** plaintext,
     size_t* plaintext_size,
     uint8_t** additional_data,
-    size_t* additional_size);
+    size_t* additional_data_size);
 
 /**
  * Obtains the enclave handle.
