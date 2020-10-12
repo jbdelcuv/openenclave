@@ -6,6 +6,7 @@
 #include <openenclave/internal/crypto/gcm.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/safecrt.h>
+#include <openenclave/internal/entropy.h>
 
 static const uint8_t _iv[12] = { 0 };
 
@@ -23,6 +24,7 @@ oe_result_t oe_seal(
     size_t key_size = 0;
 
     oe_sealed_blob_header_t *header;
+    oe_entropy_kind_t k;
     uint8_t* payload;
     size_t size;
     oe_result_t result = OE_OK;
@@ -43,16 +45,20 @@ oe_result_t oe_seal(
     if (header == NULL)
         OE_RAISE(OE_OUT_OF_MEMORY);
 
-    OE_CHECK(oe_get_seal_key(key_info, key_info_size, &key, &key_size));
+    OE_CHECK(oe_memcpy_s(&header->key_info, sizeof(header->key_info),
+                         key_info, key_info_size));
+
+    OE_CHECK(oe_get_entropy(header->key_info.key_id,
+                            sizeof(header->key_info.key_id), &k));
+
+    OE_CHECK(oe_get_seal_key((uint8_t*)&header->key_info, key_info_size,
+                             &key, &key_size));
 
     payload = (uint8_t*)(header + 1);
     OE_CHECK(oe_aes_gcm_encrypt(key, key_size, _iv, sizeof(_iv),
                                 additional_data, additional_data_size,
                                 plaintext, plaintext_size,
                                 payload, header->tag));
-
-    OE_CHECK(oe_memcpy_s(&header->key_info, sizeof(header->key_info),
-                         key_info, key_info_size));
 
     OE_CHECK(oe_memcpy_s(payload + plaintext_size, additional_data_size,
                          additional_data, additional_data_size));
@@ -80,8 +86,8 @@ oe_result_t oe_unseal(
 {
     oe_sealed_blob_header_t *header;
     uint8_t* payload;
-    uint8_t* key;
-    size_t key_size;
+    uint8_t* key = NULL;
+    size_t key_size = 0;
     oe_result_t result = OE_OK;
 
     if (blob == NULL || blob_size < sizeof(*header))
@@ -110,7 +116,6 @@ oe_result_t oe_unseal(
         *additional_data_size = header->payload_size - header->aad_offset;
 
 done:
-    if (key)
-        oe_free_seal_key(key, NULL);
+    oe_free_seal_key(key, NULL);
     return result;
 }
