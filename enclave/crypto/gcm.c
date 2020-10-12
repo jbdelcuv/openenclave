@@ -23,17 +23,21 @@ oe_result_t oe_aes_gcm_encrypt(
     oe_result_t result = OE_OK;
     size_t olen;
 
-    if (key_size != 16)
-        return OE_UNSUPPORTED;
-
     mbedtls_cipher_init(&gcm);
 
     info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_GCM);
-    if (info == NULL ||
-        mbedtls_cipher_setup(&gcm, info) ||
-        mbedtls_cipher_setkey(&gcm, key, (int)key_size * 8, MBEDTLS_ENCRYPT) ||
-        mbedtls_cipher_auth_encrypt(&gcm, iv, iv_size, aad, aad_size, input, inlen,
-                                    output, &olen, tag, 16))
+    if (info == NULL)
+        return OE_CRYPTO_ERROR;
+
+    if (key_size * 8 != info->key_bitlen)
+        return OE_UNSUPPORTED;
+
+    if (mbedtls_cipher_setup(&gcm, info) ||
+        mbedtls_cipher_setkey(&gcm, key, (int)info->key_bitlen,
+                              MBEDTLS_ENCRYPT) ||
+        mbedtls_cipher_auth_encrypt(&gcm, iv, iv_size, aad, aad_size,
+                                    input, inlen, output, &olen,
+                                    tag, info->block_size))
         result = OE_CRYPTO_ERROR;
 
     mbedtls_cipher_free(&gcm);
@@ -56,17 +60,21 @@ oe_result_t oe_aes_gcm_decrypt(
     oe_result_t result = OE_OK;
     size_t olen;
 
-    if (key_size != 16)
-        return OE_UNSUPPORTED;
-
     mbedtls_cipher_init(&gcm);
 
     info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_GCM);
-    if (info == NULL ||
-        mbedtls_cipher_setup(&gcm, info) ||
-        mbedtls_cipher_setkey(&gcm, key, (int)key_size * 8, MBEDTLS_DECRYPT) ||
-        mbedtls_cipher_auth_decrypt(&gcm, iv, iv_size, aad, aad_size, inout, inout_size,
-                                    inout, &olen, tag, 16))
+    if (info == NULL)
+        return OE_CRYPTO_ERROR;
+
+    if (key_size * 8 != info->key_bitlen)
+        return OE_UNSUPPORTED;
+
+    if (mbedtls_cipher_setup(&gcm, info) ||
+        mbedtls_cipher_setkey(&gcm, key, (int)info->key_bitlen,
+                              MBEDTLS_DECRYPT) ||
+        mbedtls_cipher_auth_decrypt(&gcm, iv, iv_size, aad, aad_size,
+                                    inout, inout_size, inout, &olen,
+                                    tag, info->block_size))
         result = OE_CRYPTO_ERROR;
 
     mbedtls_cipher_free(&gcm);
