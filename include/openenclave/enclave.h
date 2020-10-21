@@ -22,8 +22,8 @@
 #include "bits/module.h"
 #include "bits/properties.h"
 #include "bits/result.h"
-#include "bits/types.h"
 #include "bits/seal.h"
+#include "bits/types.h"
 
 /**
  * @cond IGNORE
@@ -591,9 +591,9 @@ void oe_free_seal_key(uint8_t* key_buffer, uint8_t* key_info);
  * derivation. If \c NULL, oe_get_seal_key_info() will generate entropy on
  * behalf of the caller.
  * @param[in] entropy_size Must be \c 0 if \p entropy is \c NULL.
- * @param[in] optional_flags \c OE_SEAL_TEE_AGNOSTIC to use TEE defaults. If \c
- * OE_SEAL_SGX_SPECIFIC is specified, the rest of \p optional_flags is
- * interpreted as the \a attribute_mask for \c EGETKEY on SGX.
+ * @param[in] tee_specifc \c OE_SEAL_TEE_AGNOSTIC to use TEE defaults. If \c
+ * OE_SEAL_SGX is specified, the rest of \p tee_specifc is interpreted as the
+ * \a attribute_mask for \c EGETKEY on SGX.
  * @param[out] key_info On success this points to the enclave-specific key
  * information which can be used to retrieve the key by passing it to
  * oe_get_seal_key_v2(). Freed by calling oe_free_seal_key() or oe_free_key().
@@ -608,7 +608,7 @@ oe_result_t oe_get_seal_key_info(
     oe_seal_policy_t seal_policy,
     uint8_t* entropy,
     size_t entropy_size,
-    uint64_t optional_flags,
+    uint64_t tee_specifc,
     uint8_t** key_info,
     size_t* key_info_size);
 
@@ -644,8 +644,8 @@ oe_result_t oe_seal(
     size_t plaintext_size,
     const uint8_t* additional_data,
     size_t additional_data_size,
-    uint8_t **blob,
-    size_t *blob_size);
+    uint8_t** blob,
+    size_t* blob_size);
 
 /**
  * Unseal in place a blob sealed by oe_seal().

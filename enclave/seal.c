@@ -1,14 +1,13 @@
 // Copyright (c) Open Enclave SDK contributors.
 // Licensed under the MIT License.
 
-#include <openenclave/enclave.h>
 #include <openenclave/corelibc/stdlib.h>
+#include <openenclave/enclave.h>
 #include <openenclave/internal/crypto/gcm.h>
+#include <openenclave/internal/entropy.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/safecrt.h>
-#include <openenclave/internal/entropy.h>
-
-static const uint8_t _iv[12] = { 0 };
+#include <openenclave/internal/utils.h>
 
 oe_result_t oe_seal(
     const uint8_t* key_info,
@@ -17,13 +16,13 @@ oe_result_t oe_seal(
     size_t plaintext_size,
     const uint8_t* additional_data,
     size_t additional_data_size,
-    uint8_t **blob,
-    size_t *blob_size)
+    uint8_t** blob,
+    size_t* blob_size)
 {
     uint8_t* key = NULL;
     size_t key_size = 0;
 
-    oe_sealed_blob_header_t *header;
+    oe_sealed_blob_header_t* header;
     oe_entropy_kind_t k;
     uint8_t* payload;
     size_t size;
@@ -45,25 +44,38 @@ oe_result_t oe_seal(
     if (header == NULL)
         OE_RAISE(OE_OUT_OF_MEMORY);
 
-    OE_CHECK(oe_memcpy_s(&header->key_info, sizeof(header->key_info),
-                         key_info, key_info_size));
+    oe_secure_zero_fill(header, sizeof(*header));
 
-    OE_CHECK(oe_get_entropy(header->key_info.key_id,
-                            sizeof(header->key_info.key_id), &k));
+    OE_CHECK(oe_memcpy_s(
+        &header->key_info, sizeof(header->key_info), key_info, key_info_size));
 
-    OE_CHECK(oe_get_seal_key((uint8_t*)&header->key_info, key_info_size,
-                             &key, &key_size));
+    OE_CHECK(oe_get_entropy(
+        header->key_info.ki_entropy, sizeof(header->key_info.ki_entropy), &k));
+
+    OE_CHECK(oe_get_seal_key(
+        (uint8_t*)&header->key_info, key_info_size, &key, &key_size));
 
     payload = (uint8_t*)(header + 1);
-    OE_CHECK(oe_aes_gcm_encrypt(key, key_size, _iv, sizeof(_iv),
-                                additional_data, additional_data_size,
-                                plaintext, plaintext_size,
-                                payload, header->tag));
+    OE_STATIC_ASSERT(sizeof(header->tag) >= 16);
+    OE_CHECK(oe_aes_gcm_encrypt(
+        key,
+        key_size,
+        header->iv,
+        sizeof(header->iv),
+        additional_data,
+        additional_data_size,
+        plaintext,
+        plaintext_size,
+        payload,
+        header->tag));
 
-    OE_CHECK(oe_memcpy_s(payload + plaintext_size, additional_data_size,
-                         additional_data, additional_data_size));
+    OE_CHECK(oe_memcpy_s(
+        payload + plaintext_size,
+        additional_data_size,
+        additional_data,
+        additional_data_size));
 
-    header->aad_offset = (uint32_t)plaintext_size;
+    header->ciphertext_size = (uint32_t)plaintext_size;
     header->payload_size = (uint32_t)(plaintext_size + additional_data_size);
 
     *blob = (uint8_t*)header;
@@ -84,7 +96,7 @@ oe_result_t oe_unseal(
     uint8_t** additional_data,
     size_t* additional_data_size)
 {
-    oe_sealed_blob_header_t *header;
+    oe_sealed_blob_header_t* header;
     uint8_t* payload;
     uint8_t* key = NULL;
     size_t key_size = 0;
@@ -95,25 +107,35 @@ oe_result_t oe_unseal(
 
     header = (oe_sealed_blob_header_t*)blob;
     payload = (uint8_t*)(header + 1);
-    if (header->payload_size != blob_size - sizeof(*header))
+    if (header->payload_size != blob_size - sizeof(*header) ||
+        header->payload_size < header->ciphertext_size)
         return OE_UNEXPECTED;
 
-    OE_CHECK(oe_get_seal_key((uint8_t*)&header->key_info,
-                             sizeof(header->key_info), &key, &key_size));
+    OE_CHECK(oe_get_seal_key(
+        (uint8_t*)&header->key_info,
+        sizeof(header->key_info),
+        &key,
+        &key_size));
 
-    OE_CHECK(oe_aes_gcm_decrypt(key, key_size, _iv, sizeof(_iv),
-                                payload + header->aad_offset,
-                                header->payload_size - header->aad_offset,
-                                payload, header->aad_offset, header->tag));
+    OE_CHECK(oe_aes_gcm_decrypt(
+        key,
+        key_size,
+        header->iv,
+        sizeof(header->iv),
+        payload + header->ciphertext_size,
+        header->payload_size - header->ciphertext_size,
+        payload,
+        header->ciphertext_size,
+        header->tag));
 
     if (plaintext)
         *plaintext = payload;
     if (plaintext_size)
-        *plaintext_size = header->aad_offset;
+        *plaintext_size = header->ciphertext_size;
     if (additional_data)
-        *additional_data = payload + header->aad_offset;
+        *additional_data = payload + header->ciphertext_size;
     if (additional_data_size)
-        *additional_data_size = header->payload_size - header->aad_offset;
+        *additional_data_size = header->payload_size - header->ciphertext_size;
 
 done:
     oe_free_seal_key(key, NULL);

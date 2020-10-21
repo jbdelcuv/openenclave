@@ -4,11 +4,11 @@
 #include <openenclave/bits/sgx/sgxtypes.h>
 #include <openenclave/corelibc/stdlib.h>
 #include <openenclave/enclave.h>
+#include <openenclave/internal/crypto/sha.h>
+#include <openenclave/internal/entropy.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/safecrt.h>
 #include <openenclave/internal/utils.h>
-#include <openenclave/internal/entropy.h>
-#include <openenclave/internal/crypto/sha.h>
 #include "asmdefs.h"
 #include "report.h"
 
@@ -222,16 +222,16 @@ done:
 
 static oe_result_t _get_seal_key_info_internal(
     oe_seal_policy_t seal_policy,
-    uint64_t opt_flags,
-    sgx_key_request_t *key_request)
+    uint64_t tee_specifc,
+    sgx_key_request_t* key_request)
 {
     oe_result_t result = OE_OK;
 
     OE_CHECK(_get_default_key_request_attributes(key_request));
 
     // Set custom attributes mask if provided
-    if (opt_flags & OE_SEAL_SGX_SPECIFIC)
-        key_request->attribute_mask.flags = opt_flags & ~OE_SEAL_SGX_SPECIFIC;
+    if (tee_specifc & OE_SEAL_SGX)
+        key_request->attribute_mask.flags = tee_specifc & ~OE_SEAL_SGX;
 
     // Set key name and key policy.
     key_request->key_name = SGX_KEYSELECT_SEAL;
@@ -283,7 +283,8 @@ static oe_result_t _oe_get_seal_key_by_policy_internal(
     }
 
     // Get key request
-    result = _get_seal_key_info_internal(seal_policy, 0, &sgx_key_request);
+    result = _get_seal_key_info_internal(seal_policy, OE_SEAL_TEE_AGNOSTIC,
+            &sgx_key_request);
     if (result != OE_OK)
     {
         return OE_UNEXPECTED;
@@ -385,24 +386,27 @@ oe_result_t oe_get_seal_key_info(
     oe_seal_policy_t seal_policy,
     uint8_t* keyid,
     size_t keyid_size,
-    uint64_t opt_flags,
+    uint64_t tee_specifc,
     uint8_t** key_info,
     size_t* key_info_size)
 {
-    sgx_key_request_t *kreq;
+    sgx_key_request_t* kreq;
     oe_sha256_context_t sha;
     oe_result_t result = OE_OK;
     oe_entropy_kind_t k;
 
-    if (!key_info || !key_info_size ||
-    (keyid == NULL) != (keyid_size == 0))
+    if (!key_info || !key_info_size || (keyid == NULL) != (keyid_size == 0))
+        return OE_INVALID_PARAMETER;
+
+    if (tee_specifc != OE_SEAL_TEE_AGNOSTIC &&
+        (tee_specifc & OE_SEAL_SGX) == 0)
         return OE_INVALID_PARAMETER;
 
     kreq = (sgx_key_request_t*)oe_calloc(1, sizeof(*kreq));
     if (kreq == NULL)
         OE_RAISE(OE_OUT_OF_MEMORY);
 
-    OE_CHECK(_get_seal_key_info_internal(seal_policy, opt_flags, kreq));
+    OE_CHECK(_get_seal_key_info_internal(seal_policy, tee_specifc, kreq));
 
     switch (keyid_size)
     {
@@ -410,8 +414,8 @@ oe_result_t oe_get_seal_key_info(
             OE_CHECK(oe_get_entropy(kreq->key_id, sizeof(kreq->key_id), &k));
             break;
         case sizeof(kreq->key_id):
-            OE_CHECK(oe_memcpy_s(kreq->key_id, sizeof(kreq->key_id),
-                                 keyid, keyid_size));
+            OE_CHECK(oe_memcpy_s(
+                kreq->key_id, sizeof(kreq->key_id), keyid, keyid_size));
             break;
         default:
             OE_CHECK(oe_sha256_init(&sha));

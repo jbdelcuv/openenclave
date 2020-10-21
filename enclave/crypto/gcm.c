@@ -3,8 +3,8 @@
 
 #include <mbedtls/cipher.h>
 
-#include <openenclave/internal/raise.h>
 #include <openenclave/internal/crypto/gcm.h>
+#include <openenclave/internal/raise.h>
 
 oe_result_t oe_aes_gcm_encrypt(
     const uint8_t* key,
@@ -18,7 +18,7 @@ oe_result_t oe_aes_gcm_encrypt(
     uint8_t* output,
     uint8_t* tag)
 {
-    const mbedtls_cipher_info_t *info;
+    const mbedtls_cipher_info_t* info;
     mbedtls_cipher_context_t gcm;
     oe_result_t result = OE_OK;
     size_t olen;
@@ -33,11 +33,20 @@ oe_result_t oe_aes_gcm_encrypt(
         return OE_UNSUPPORTED;
 
     if (mbedtls_cipher_setup(&gcm, info) ||
-        mbedtls_cipher_setkey(&gcm, key, (int)info->key_bitlen,
-                              MBEDTLS_ENCRYPT) ||
-        mbedtls_cipher_auth_encrypt(&gcm, iv, iv_size, aad, aad_size,
-                                    input, inlen, output, &olen,
-                                    tag, info->block_size))
+        mbedtls_cipher_setkey(
+            &gcm, key, (int)info->key_bitlen, MBEDTLS_ENCRYPT) ||
+        mbedtls_cipher_auth_encrypt(
+            &gcm,
+            iv,
+            iv_size,
+            aad,
+            aad_size,
+            input,
+            inlen,
+            output,
+            &olen,
+            tag,
+            info->block_size))
         result = OE_CRYPTO_ERROR;
 
     mbedtls_cipher_free(&gcm);
@@ -55,7 +64,7 @@ oe_result_t oe_aes_gcm_decrypt(
     size_t inout_size,
     const uint8_t* tag)
 {
-    const mbedtls_cipher_info_t *info;
+    const mbedtls_cipher_info_t* info;
     mbedtls_cipher_context_t gcm;
     oe_result_t result = OE_OK;
     size_t olen;
@@ -70,11 +79,20 @@ oe_result_t oe_aes_gcm_decrypt(
         return OE_UNSUPPORTED;
 
     if (mbedtls_cipher_setup(&gcm, info) ||
-        mbedtls_cipher_setkey(&gcm, key, (int)info->key_bitlen,
-                              MBEDTLS_DECRYPT) ||
-        mbedtls_cipher_auth_decrypt(&gcm, iv, iv_size, aad, aad_size,
-                                    inout, inout_size, inout, &olen,
-                                    tag, info->block_size))
+        mbedtls_cipher_setkey(
+            &gcm, key, (int)info->key_bitlen, MBEDTLS_DECRYPT) ||
+        mbedtls_cipher_auth_decrypt(
+            &gcm,
+            iv,
+            iv_size,
+            aad,
+            aad_size,
+            inout,
+            inout_size,
+            inout,
+            &olen,
+            tag,
+            info->block_size))
         result = OE_CRYPTO_ERROR;
 
     mbedtls_cipher_free(&gcm);
