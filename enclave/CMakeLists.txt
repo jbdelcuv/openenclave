@@ -42,7 +42,7 @@ add_enclave_library(
   asym_keys.c
   link.c
   tls_cert.c
-  seal.c
+  seal_gcm-aes.c
   ${PLATFORM_SRC})
 
 maybe_build_using_clangw(oeenclave)
