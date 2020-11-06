@@ -357,7 +357,7 @@ incompatibilities still exist in:
 
 ## Threading
 
-When the untrusted application ECALLS into an enclave, the untrusted Run-Time
+When the untrusted application ECALLs into an enclave, the untrusted Run-Time
 System (uRTS) binds the calling host thread to an enclave thread. Host and
 enclave threads might be bound for the entire lifetime of the thread. In this
 mode, which corresponds to `<TCSPolicy>` 0, the thread-local data is
